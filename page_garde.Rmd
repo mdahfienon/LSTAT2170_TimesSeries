@@ -1,0 +1,12 @@
+---
+title: "| ![](UCLouvain - ecole-statistique.jpg){height=3in, width=3in}           \\hspace{2.1in}  ![](logo_fac_scien.png){height=0.7in, width=1.2in} \\vspace{1.1in} \n\\hrulefill \\vspace{0.2in} \n**LSTAT2170 ~ TIMES SERIES ANALYSIS** \n\n \\hrulefill \\vspace{0.8in} \n\n**Final Project Report** \n \\vspace{0.2in} "
+subtitle: "\n**Data** : Car drivers killed and seriuously injured in Great Britain from January 1969 to December 1984 \\vspace{0.8in}"
+author: 
+- " **Mathias Dah Fienon** - _noma : 04452100_ - DATS2M \\vspace{1.3in}"
+date: "Academic year : **2021-2022**"
+output: 
+  pdf_document: 
+    keep_tex: yes
+fontsize: 11pt
+---
+\pagenumbering{gobble}

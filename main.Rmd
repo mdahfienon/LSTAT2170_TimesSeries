@@ -1,0 +1,41 @@
+---
+title: "| ![](UCLouvain - ecole-statistique.jpg){height=3in, width=3in}           \\hspace{2.1in}  ![](logo_fac_scien.png){height=0.7in, width=1.2in} \\vspace{1.1in} \n\\hrulefill \\vspace{0.2in} \n**LSTAT2170 ~ TIMES SERIES ANALYSIS** \n\n \\hrulefill \\vspace{0.8in} \n\n**Final Project Report** \n \\vspace{0.2in} "
+subtitle: "\n**Data** : Car drivers killed and seriuously injured in Great Britain from January 1969 to December 1984 \\vspace{0.8in}"
+author: 
+- " **Mathias Dah Fienon** - _noma : 04452100_ - DATS2M \\vspace{1.3in}"
+date: "Academic year : **2021-2022**"
+output: 
+  pdf_document:
+    number_sections: yes
+#    toc: yes
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \setlength{\headheight}{30pt}
+- \fancyfoot[L]{\textit{Great Britain's car drivers dataset}}
+- \fancyhead[L]{\includegraphics[height=12mm,width=40mm]{UCLouvain - ecole-statistique.jpg}}
+- \fancyhead[R]{}
+- \fancyfoot[C]{\thepage}
+- \fancyfoot[R]{LSTAT2170 | \textit{Mathias Dah Fienon}}
+- \usepackage{float}
+---
+\pagenumbering{gobble}
+\hspace{2.1in}
+
+\begin{center}
+\begin{Large}
+
+Project Report -- LSTAT2170 : Times series analysis
+
+\end{Large} 
+ \end{center}
+
+\hspace{2.1in}
+\tableofcontents
+
+\pagenumbering{arabic}
+
+```{r, child=" project.Rmd"}
+```
+

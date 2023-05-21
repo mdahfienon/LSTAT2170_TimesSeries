@@ -1,0 +1,437 @@
+---
+title: " \\hspace{2.1in} "
+subtitle: "Project Report ~ LSTAT2170 : Times series analysis"
+#subtitle: "Dataset : car drivers killed and seriously injured \n in Great Britain from January 1969 to December 1984"
+#author: "by Mathias Dah Fienon, noma : 04452100, DATS2MS"
+#date: "Academic year : 2021-2022"
+output:
+  pdf_document: 
+    number_sections: yes
+#    toc: yes
+header-includes:
+- \usepackage{fancyhdr}
+- \usepackage{graphicx}
+- \pagestyle{fancy}
+- \setlength{\headheight}{30pt}
+- \fancyfoot[L]{LSTAT2170 | \textit{Car drivers in GB dataset}  }
+- \fancyhead[L]{\includegraphics[height=12mm,width=40mm]{UCLouvain - ecole-statistique.jpg}}
+- \fancyhead[R]{}
+- \fancyfoot[C]{\thepage}
+- \fancyfoot[R]{\textit{Mathias Dah Fienon}}
+- \usepackage{float}
+#- before_body: page_garde.tex 
+#\input{page_garde.tex}
+
+#mainfont: Garamond
+#fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NA, warning = FALSE, cache = TRUE, message = FALSE)
+```
+
+```{r packages, include=FALSE}
+library(ggplot2)
+theme_set(theme_bw())
+source("FonctionsSeriesChrono.r")
+```
+
+
+
+\newpage
+
+# \centering Introduction {.unnumbered}
+
+Times series are data collected based on time (may be discrete or continuous). Their analysis provides reliable information about the past situation and allows prediction on the future. This analysis in business, finance, marketing ... are great opportunities for stakeholders to grow and have great outcomes of they activities.
+
+In this project, we will apply times series forecasting methods to the *car drivers* data. This data is a monthly number of car drivers killed and seriously injured in Great Britain from January 1969 to December 1984.
+
+First, we will describe the structure of this data and try to find a suitable model to fit the data. And then, we will perform a prediction based on the fitted model that will be compare to a non-parametric prediction (the Holt-Winters method).
+
+# Data loading and preliminary analysis
+
+## Data viewing
+
+Here, let's have a general look of the data set (Table 1).
+
+```{r}
+dt0 <- read.csv("drivers.txt", header = FALSE)
+colnames(dt0) <-  "drivers"
+
+dt01 <- dt0
+
+dt01$year <- seq.Date(as.Date("1969-01-01"), as.Date("1984-12-31"), by = "month")
+```
+
+```{r}
+year <- 1969:1984
+month <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+
+dt <- ts(dt0, start = 1969, frequency = 12)
+dt1 <- matrix(dt, nrow = 16, byrow = TRUE, dimnames = list(year,month))
+
+dt1 |> knitr::kable(caption = "Car drivers killed and seriously injured in Great Britain from January 1969 to December 1984", 
+                   )
+```
+
+## Data plot
+
+```{r, fig.cap="Car drivers killed and seriously injured in Great Britain from January 1969 to December 1984", fig.height=4}
+
+
+g1 <- ggplot(dt01, aes(x = year, y = drivers))+
+  geom_line(color = "black",lwd = 0.2)+
+  geom_smooth(method = "lm", se = FALSE, lwd = 0.2, col = "cyan4", lty = 4)+
+  labs(title = "Car drivers killed and seriously injured ",
+       x = "Years",
+       y = "Counts")+
+  theme_bw()+
+  geom_segment(aes(x = as.Date("1968-11-01"), y = 1300, xend = as.Date("1973-5-01"), yend = 1600), color = "gray", lty = 2)+
+  geom_segment(aes(x = as.Date("1968-11-01"), y = 2400, xend = as.Date("1973-5-01"), yend = 2750), color = "gray", lty = 2)+
+  geom_segment(aes(x = as.Date("1968-11-01"), y = 2400, xend = as.Date("1968-11-01"), yend = 2200), color = "gray", lty = 2)+
+  geom_segment(aes(x = as.Date("1968-11-01"), y = 1300, xend = as.Date("1968-11-01"), yend = 1400), color = "gray", lty = 2)+
+  geom_segment(aes(x = as.Date("1973-5-01"), y = 2750, xend = as.Date("1973-5-01"), yend = 2600), color = "gray", lty = 2)+
+  geom_segment(aes(x = as.Date("1973-5-01"), y = 1600, xend = as.Date("1973-5-01"), yend = 1700), color = "gray", lty = 2)+
+  
+  geom_segment(aes(x = as.Date("1974-01-01"), y = 1300, xend = as.Date("1982-07-01"), yend = 1300), color = "skyblue", lty = 4)+
+  geom_segment(aes(x = as.Date("1974-01-01"), y = 1300, xend = as.Date("1974-01-01"), yend = 1400), color = "skyblue", lty = 4)+
+  geom_segment(aes(x = as.Date("1982-7-01"), y = 1300, xend = as.Date("1982-7-01"), yend = 1400), color = "skyblue", lty = 4)+
+  geom_segment(aes(x = as.Date("1974-01-01"), y = 2300, xend = as.Date("1982-07-01"), yend = 2300), color = "skyblue", lty = 4)+
+  geom_segment(aes(x = as.Date("1974-01-01"), y = 2300, xend = as.Date("1974-01-01"), yend = 2200), color = "skyblue", lty = 4)+
+  geom_segment(aes(x = as.Date("1982-07-01"), y = 2300, xend = as.Date("1982-07-01"), yend = 2200), color = "skyblue", lty = 4)
+
+suppressWarnings(g1) 
+
+#theme(panel.grid=element_blank(), panel.background = element_rect(fill = "white", colour = "grey50"), panel.border = element_rect(linetype = 1, fill = NA))
+```
+
+From this plot (Figure 1), we notice a trend and a seasonality in the data. Hence,
+
+-   from *1969* to *1973*, the trend tends to increase, and the seasonal part is in somehow irregular (box in gray on the plot)
+
+-   around *1973-1974*, their is a structural break where the trend goes down, with the seasonality, a little bit breaked.
+
+-   from *1975* to *1980*, the data shows a relative stable structure, with the trend and the seasonality that tend to be relatively constant. This fact remains during *1980-1982* (box in sky blue) before showing another break around *1983*
+
+Overall, in first sight, the drivers killed and seriously injured during this period tend to *decrease* (which is obviously a good news : maybe a certain policies have been made).
+
+To make a better analysis of this *car drivers* data, and because of the seasonality and trend in the data, we need to get the stationary part of the data. This is discuss in the next session
+
+# Visual inspection of the times series structure
+
+## Detrend and deseason of the data
+
+As the data set presents a trend and a seasonality, let's apply a non parametric method to render it stationary. Be award that, due to the structure of the plot, we don't need any transformation to stabilize the variance as the variance among year (and overall years) seems stable.
+
+Thus, as the data is a monthly data over years, a ***12*** order differential is supposed to treat the seasonality in the data and an order ***1*** will treat the trend of the data. Thus we could get the stationary part of the data.
+
+What we have said above (Figure 2), can be observed in the plot below. Take a closer look at the plot and notice that the stationary part is *mean zero*.
+
+```{r, fig.cap="Stationary part of Car drivers data", fig.height=4}
+desea_dt <- diff(dt, lag = 12)
+detren <- diff(desea_dt, lag = 1)
+plot(detren, ylab = "Counts", main = " Car drivers data detrend and deseason ")
+abline(h = 0, col = "cyan3", lty = 4)
+legend("bottomright", horiz = TRUE, legend = "mean zero line", col = "cyan3", lty = 4, cex = 0.6)
+```
+
+With the non parametric method, we get a stationary part of the *car drivers* data. To which, we can check what theoretical model can best fit this stationary part of the data. This is done in the next session.
+
+## Autocorrelation and Partial autocorrelation analysis
+
+To find the best model to fit the stationary part, let's analyse the autocorrelation and partial autocorrelation of the detrend and deseason data (Figure 3). Due to this seasonality and trend, we need to analyse the monthly dependent and also the yearly dependent.
+
+```{r, fig.cap="Autocorrelation and Partial function of the stationary component of the data", fig.width=16, fig.height=7}
+
+par(mfrow = c(1,2))
+acf(detren, lag.max = 60, main = "Autocorrelation function")
+abline(v = c(1.01,2,3,4)+0.01, col = "lightgreen", lty = 3)
+abline(v = seq(0, 1, by = 1/12)+0.01, col = "cyan4", lty = 4)
+
+pacf(detren, lag.max = 60,main = "Partial autocorrelation function")
+abline(v = c(1.01,2,3,4)+0.01, col = "lightgreen", lty = 3)
+abline(v = seq(0, 1, by = 1/12)+0.01, col = "cyan4", lty = 4)
+```
+
+From the autocorrelation and partial autocorrelation plots :
+
+-   the yearly component has a quick decay of the autocorrelation and a relatively slow decay of the partial autocorrelation with the two order significance. Hence, an $MA(2)$ or an $ARMA(1,1)$ may best fit this component.
+
+-   about the monthly dependent, we have some kind of exponential decay of the autocorrelation function with the partial autocorrelation that are mostly insignificant. This doesn't allow us to have a clear idea about a specific model that can fit this part. Thus, let's opt for an $ARMA(1,1)$ or $ARMA(1,2)$.
+
+But we should not based the choice of the model on just the visual analysis. Let's analyse the *Akaike information criterion (AIC)* of each suggested model.
+
+# Model selection and parameters adjustment
+
+Since we have assume that an $MA(2)$ or an $ARMA(1,1)$ may fit the yearly component and an $ARMA(1,1)$ or $ARMA(1,2)$ for the monthly part, we will compare these models *AIC* throughout a $S-ARIMA(p,1,d)\times(P,1,Q)_{12}$ with max value of p, q, P et Q is 2.
+
+## Model selection
+
+The objective here is to select the model with the smaller *AIC* and in some extend with the small number of parameters.
+
+```{r, cache=TRUE}
+Comp.Sarima(dt, d = 1, saison = 12, D = 1, p.max = 1, q.max = 2, P.max = 1, Q.max = 2 )
+```
+
+Based on the output of the automatic selection criterion (based on the smaller *Akaike Information Criterion*), we can select two models with a slightly small *AIC* : $SARIMA(1,1,1)\times(0,1,1)_{12}$ with *AIC = 0* and $SARIMA(1,1,2)\times(0,1,1)_{12}$ with *AIC = 0.19*.
+
+## Parameters analysis
+
+After we have selected the best models (based on the *AIC*), let's analyse the significance of the parameters of the models.
+
+### Model 1 : $SARIMA(1,1,1)\times(0,1,1)_{12}$
+
+```{r}
+mod1 <- arima(dt, order = c(1,1,1), seasonal = list(order = c(0,1,1), period = 12))
+
+rbind(mod1$coef[1:3], diag(mod1$var.coef)[1:3], 
+      coef.p(mod1$coef[1:3], diag(mod1$var.coef)[1:3])) |> 
+  t() |> 
+  round(4) |> 
+  knitr::kable(digits = 3, 
+               col.names = c("coef","var.coef",'p-value'),
+               caption = "Parameters of SARIMA(1,1,1)x(0,1,1) s=12")
+```
+
+For the $SARIMA(1,1,1)$x$(0,1,1)_{12}$, all the parameters are less than one and are significant (Table 2). But notice that the coefficient of the *moving average* part (*-0.928*) of the seasonality is relatively close to the region of non-stationarity.
+
+### Model 2 : $SARIMA(1,1,2)\times(0,1,1)_{12}$
+
+```{r}
+mod2 <- arima(dt, order = c(1,1,2), seasonal = list(order = c(0,1,1), period = 12))
+
+rbind(mod2$coef[1:4], diag(mod2$var.coef)[1:4], 
+      coef.p(mod2$coef[1:4], diag(mod2$var.coef)[1:4])) |> 
+  t() |> 
+  round(4) |> 
+  knitr::kable(digits = 3, 
+               col.names = c("coef","var.coef",'p-value'),
+               caption = "Parameters of SARIMA(1,1,2)x(0,1,1) s=12")
+```
+
+For this model $SARIMA(1,1,2)\times(0,1,1)_{12}$, as for the previous one, all its parameters are significant too and the coefficients are not that close to the *non-stationarity* region (see Table 3).
+
+Then, the question is which one to choose among these two ?? Indeed, the first model has less parameters, and it would be a great idea to choose that one, but let's analysis the residuals of the models and their prediction power. This in done in the next session.
+
+# Model validation
+
+Here, we will analyse the residuals of the two models and see their prediction power.
+
+## Residuals analysis
+
+```{r, fig.cap="Normal Q-Q Plot of models",  fig.width=15, fig.height=7}
+par(mfrow = c(1,2))
+qqnorm(mod1$residuals, col = "violetred3", main = "SARIMA(1,1,1)X(0,1,1)")
+qqline(mod1$residuals, col = "cyan4", lty = 4)
+
+qqnorm(mod2$residuals, col = "violetred3", main = "SARIMA(1,1,2)X(0,1,1)")
+qqline(mod2$residuals, col = "cyan4", lty = 4)
+```
+
+The normal QQplot (Figure 4) of the residuals of the two models shows that the residuals mostly aligned with the theoretical normal quantiles (As shown in the plots, the residuals are aligned with the red line). Thus, the model residuals are normally distributed. Now, is there any correlation among the residuals?
+
+```{r, fig.asp=1.25, eval = FALSE}
+tsdiag(mod1, gof.lag = sqrt(length(dt)))
+tsdiag(mod2, gof.lag = sqrt(length(dt)))
+```
+
+```{r,fig.cap="Residuals analysis of SARIMA(1,1,1)X(0,1,1) s=12", fig.asp=1.25}
+tsdiag(mod1, gof.lag = sqrt(length(dt)))
+```
+
+```{r,fig.asp=1.25,fig.cap="Residuals analysis of SARIMA(1,1,2)X(0,1,1) s=12"}
+tsdiag(mod2, gof.lag = sqrt(length(dt)))
+```
+
+Through the Ljung-Box test and the autocorrelation of the standardized residuals (Figure 5 & 6), the residuals are independently distributed so uncorrelated for both models.
+
+Sum up the residuals analysis, for both models $SARIMA(1,1,1)\times(0,1,1)_{12}$ and $SARIMA(1,1,2)\times(0,1,1)_{12}$, their residuals are normally distributed and uncorrelated. That is the good thing we are looking for, but still which one to choose ? Indeed, $SARIMA(1,1,1)\times(0,1,1)_{12}$ has the lower *AIC*, but is it going to be the best to fit the car drivers data ??
+
+## Prediction error analysis
+
+```{r}
+pred1 <- OneAhead(dt, order = c(1,1,1), seasonal = list(order = c(0,1,1), period = 12))
+
+pred2 <- OneAhead(dt, order = c(1,1,2), seasonal = list(order = c(0,1,1), period = 12))
+```
+
+For the $SARIMA(1,1,1)\times(0,1,1)_{12}$ model, the prediction error is : `r pred1$error` and `r pred2$error` for $SARIMA(1,1,2)\times(0,1,1)_{12}$
+
+```{r, eval=FALSE}
+
+d000 <- cbind(dt01, pred1[["tspred"]], pred2[["tspred"]])
+ggplot(d000, aes(x = year))+
+  
+  geom_line(aes(y = pred1[["tspred"]]), col = "red")+
+  geom_line(aes(y = pred2[["tspred"]]), col = "green")+
+  geom_line(aes( y = drivers))
+```
+
+Though the prediction error analysis, the model 1 : $SARIMA(1,1,1)\times(0,1,1)_{12}$ is definitely the one with less prediction error.
+
+Thus, based on all the analysis above, the model $SARIMA(1,1,1)\times(0,1,1)_{12}$ is the one with: - the smaller *AIC*, - less *parameters* (so *parsimonious*), - less prediction error - and its residuals are *independently normally distributed* so *uncorrelated* at 5% level of confidence.
+
+It's then the one that can best describe the phenomenon among our data set.
+
+#### \centering Model specification : {.unnumbered}
+
+Our chosen model is : $SARIMA(1,1,1)\times(0,1,1)_{12}$
+
+Let's :
+
+-   $X_t$ be the observed car drivers data at time $t$
+
+-   $\mu_t$, the trend of the time series
+
+-   $s_t$ the seasonality part
+
+-   $\varepsilon_t \sim WN(0,\sigma^2)$, an innovation part of the data
+
+-   $Y_t$ the stationary part (with *mean zero*)of $X_t$: obtained after removing the trend and the seasonality out of $X_t$
+
+Thus, we have $$ X_t = \mu_t + s_t + \varepsilon_t$$
+and
+\begin{align*}
+ Y_t  & =\nabla^1\nabla^1_{12}X_t\\
+ & =(1-B)(1-B^{12})X_t\\
+ & = (1-B^{12} - B + B^{13})X_t\\
+ & = X_t - X_{t-1} - X_{t-12} + X_{t-13}
+\end{align*}
+$Y_t$ being an $ARMA$ process, we then have :
+\begin{align*}
+ (1-\alpha  B)Y_t & = (1-\beta B)(1-\gamma  B^{12})\varepsilon_t \\
+ Y_t - \alpha Y_{t-1} & = (1-\gamma B^{12} - \beta B + \gamma \beta B^{13})\varepsilon_t\\
+ & = \varepsilon_{t} - \gamma \varepsilon_{t-12} -\beta\varepsilon_{t-1} + \gamma \beta\varepsilon_{t-13}\\
+ \implies Y_t & = \alpha Y_{t-1} +  \varepsilon_{t} - \gamma \varepsilon_{t-12} -\beta\varepsilon_{t-1} + \gamma \beta\varepsilon_{t-13}
+\end{align*}
+With the estimated parameters, we finally get :$$ Y_t = 0.25\times Y_{t-1} +\varepsilon_t +0.93\times\varepsilon_{t-12} + 0.79\times\varepsilon_{t-1} + 0.73\times\varepsilon_{t-13}$$ 
+With $X_t$, we have : 
+\begin{align*}
+\implies X_t &= X_{t-1} + X_{t-12} - X_{t-13} + 0.25\times X_{t-1} - 0.25 \times X_{t-2} - 0.25 \times X_{t-13} +  0.25 \times X_{t-14} \\ &+ \varepsilon_t +0.93\times\varepsilon_{t-12} + 0.79\times\varepsilon_{t-1} + 0.73\times\varepsilon_{t-13}
+\end{align*}
+
+with $\varepsilon_t \sim \mathcal{N}(0,\sigma^2 =17432)$ (under _5% confidence level_) 
+
+# Prediction
+
+For the prediction, we will adopt two approaches, the parametric and the Holt-Winters approach.
+
+Why these two approach ?
+
+The parametric approach in the prediction that takes into account the structural breaks in the data (or all information available in the data). Where the non parametric one, takes into account just the later observation to predict the future. Nevertheless, looking closely at our data structure (with all observed structural breaks) the parametric approach seems to be the one that can predict the future that will best fit the realities that will be observed.
+
+Also, recall that since the *Holt-Winters* approach take into account the later observations, we could get a prediction that goes in same lines with the later observations (don't forget that around the end of the observed data, there is some kind of decay of the number of drivers killed and seriously injured).
+
+## Box-Jenkins approach
+
+```{r}
+dt_pred <- predict(mod1, n.ahead = 30)
+
+ts.tot <- ts(c(dt, dt_pred$pred),start = 1969, frequency = 12)
+
+plot(dt, type = "l", 
+     main = "Prediction Box-Jenkins",
+     ylim = c(500, 2800), 
+     xlim = c(1969, 1987))
+lines(dt_pred$pred, lty = "dotted")
+
+lines(dt_pred$pred + 1.96*dt_pred$se, lty = 4, col = "red")
+
+lines(dt_pred$pred - 1.96*dt_pred$se, lty = 5, col = "green")
+legend("bottom", legend = c("Upper bound", "Prediction", "Lower bound"), col = c("red","black", "green"), lty = c(4, 3,5),cex = 0.7, horiz = TRUE )
+```
+
+As stated, this prediction method gives a prediction that is close to the reality observed from de data, with a prediction intervals that are relatively small.
+
+## Holt-Winters approach
+
+```{r}
+mod.HW <- HoltWinters(dt, seasonal = "additive")
+
+pred.HW <- predict(mod.HW, n.ahead = 30, prediction.interval = T)
+
+#ts.toth <- ts(c(dt, pred.HW[, "fit"]),start = 1969, frequency= 12)
+
+ts.toth <- ts(dt,start = 1969, frequency= 12)
+
+plot(ts.toth, type = "l", main = "Prediction Holt-Winters",
+     ylim = c(300, 2650), xlim = c(1969, 1987))
+
+lines(pred.HW[, "fit"], lty = "dotted" )
+
+lines(pred.HW[,"upr"], lty = 4, col = "red")
+
+lines(pred.HW[,"lwr"], lty = 5, col = "green")
+legend("bottom", legend = c("Upper bound", "Prediction", "Lower bound"), col = c("red","black", "green"), lty = c(4, 3,5),cex = 0.7, horiz = TRUE)
+```
+
+The *Holt-Winters* approach, present a prediction with large prediction interval. Indeed, with this prediction interval, we have large *space of intervention* (if possible to say so), so that the reality will be within this interval.
+
+But looking closely to the structure of the data, we notice that the number of injured drivers is decreasing, so in the future, our expectation is that the number keeps decreasing.
+
+## Comparaison between Box-Jenkins and Holt-Winters
+
+```{r, fig.width=8, fig.height=5, fig.cap="Prediction comparison (Box-Jenkins vs Holt-Winters)"}
+plot(ts.toth, type = "l", col =0, main = "Prediction Holt-Winters vs Box-Jenkins",
+     ylim = c(300, 2800), xlim = c(1985, 1987.5))
+lines(pred.HW[, "fit"], lty = "dotted", col = "black" )
+lines(pred.HW[,"upr"], lty = 4, col = "red")
+lines(pred.HW[,"lwr"], lty = 5, col = "green")
+
+
+lines(dt_pred$pred + 1.96*dt_pred$se, lty = 2, col = "skyblue")
+lines(dt_pred$pred - 1.96*dt_pred$se, lty = 2, col = "navyblue")
+lines(ts.tot, lty = "dotted", col = "black" )
+legend("top", 
+       legend = c("B-J pred UB", "HW pred UB", "B-J pred", "HW pred", "B-J pred LB", "HW pred LB"),
+      col = c("skyblue", "red", "black", "black", "navyblue", "green"), 
+      lty = c(2,4,3,3,2,5), border = "white", cex = 0.6, horiz = TRUE) 
+
+```
+
+Comparing the two methods (Figure 7), the prediction interval given by  _Holt-Winters_ is larger than the one given by the _parametric_ approach. Such thing because of the fact that the parametric approach takes into account the structure of the data. Then, the fact that by the end of the observed data, there is such a change in the structure of the data lead to such prediction. Also, notice that at some pick (by the end of 1986 and 1987), these two approach give the same prediction (line in gray)
+
+```{r, fig.cap="15-ahead prediction (Box-Jenkins approach)", fig.width=15, fig.height=7, eval=FALSE}
+par(mfrow = c(1,2))
+plot(ts.tot, type = "l", col ="black", xlim = c(1985,1988), 
+     ylim = c(500, 2300), 
+     main = "Prediction Box-Jenkins")
+lines(dt_pred$pred + 1.96*dt_pred$se, lty = 2, col = "red")
+lines(dt_pred$pred - 1.96*dt_pred$se, lty = 2, col = "green")
+plot(ts.toth, type = "l", col ="black", 
+     main = "Prediction Holt-Winters",
+     xlim = c(1985,1988), ylim = c(300, 2500) )
+lines(pred.HW[,"upr"], lty = 2, col = "red")
+lines(pred.HW[,"lwr"], lty = 2, col = "green")
+```
+
+# \centering Conclusion {.unnumbered}
+
+Sum up all we have seen above, the data about the killed and seriously injured car drivers in Great Britain shows the evolution of these numbers from January 1969 to December 1984. From the analysis of this data, we have seen that their numbers trend to decrease during the concerned years, but still with a seasonality. This seasonality can be justify by some periods of the year where accidents are most likely to occur (say around the ends of the years). This data have been modeled by a $SARIMA(1,1,1)\times(0,1,1)_{12}$ with its residuals been independently and  normally distributed with $mean \ = 0, \ \sigma^2 =17432$. A prediction based on parametrics approach and non parametrics approach have been made to predict to future evolution of these numbers. 
+
+```{r, fig.cap="Drivers killed and seriously injured by years", eval=FALSE}
+#par(mfrow = c(1,2))
+plot(dt[1:12], type = "line", ylim = c(min(dt), max(dt+30)), 
+     ylab = "Counts",
+     xlab = "Months",
+     ,
+     main = "Drivers killed and seriously injured", 
+     xlim = c(1, 13))
+
+for (i in 2:16){
+  lines(dt[12*(i-1)+(1:12)], col=i)
+}
+legend("right",legend = 1969:1984, lty = 1, col = 1:16, cex = 0.5, horiz = FALSE)
+
+#plot(log(dt[1:12]), type = "line", ylim = c(min(log(dt)), max(log(dt+30))), 
+#     ylab = "Counts",
+#     xlab = "Months",
+#     ,
+#     main = "Drivers killed and seriously injured", 
+#     xlim = c(1, 13))
+
+#for (i in 2:16){
+#  lines(log(dt[12*(i-1)+(1:12)]), col=i)
+#}
+#legend("right",legend = 1969:1984, lty = 1, col = 1:16, cex = 0.5, horiz = FALSE)
+```
